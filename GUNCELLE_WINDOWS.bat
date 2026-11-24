@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal EnableExtensions
 chcp 65001 >nul
 cd /d "%~dp0"
@@ -64,6 +64,9 @@ echo [7/7] Native splash uretiliyor...
 call dart run flutter_native_splash:create
 if errorlevel 1 goto fail
 
+echo [SON] Android giris sinifi ve Turkce uygulama adi dogrulaniyor...
+call dart run scripts\repair_android_launch.dart
+if errorlevel 1 goto fail
 echo.
 echo TAMAMLANDI. Android emulatorde baslatmak icin:
 echo flutter run -d emulator-5554
