@@ -1,0 +1,13 @@
+MG İle Öğren – bildirim rozeti bağımlılığı düzeltmesi
+
+Hata: Could not resolve package:app_badge_plus
+
+1. ZIP içindeki pubspec.yaml ve ROZET_DUZELT_WINDOWS.bat dosyalarını C:\Muratileogren klasörüne çıkar.
+2. ROZET_DUZELT_WINDOWS.bat çalıştır.
+3. CMD: flutter run -d emulator-5554
+
+Yapılan değişiklik: app_badge_plus: ^1.2.10 (Dart SDK 3.0+ uyumlu)
+Diğer Firebase sürümleri ve kodlar korunmuştur.
+Kotlin Gradle Plugin uyarısı bu hatanın nedeni değildir.
+
+Flutter SDK bulunmayan ortamda gerçek derleme doğrulanmadı.
