@@ -9,6 +9,7 @@ import 'home.dart';
 import 'catalog.dart';
 import 'account.dart';
 import 'notifications.dart';
+import 'lesson.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -103,6 +104,49 @@ class AcademyShell extends StatefulWidget {
 }
 class _AcademyShellState extends State<AcademyShell>{
   int index=0;
+  bool _openingPush=false;
+
+  @override void initState(){
+    super.initState();
+    widget.notifications.addListener(_checkPushRoute);
+    widget.store.addListener(_checkPushRoute);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPushRoute());
+  }
+
+  void _checkPushRoute(){
+    if(!mounted || _openingPush || !widget.store.signedIn)return;
+    // Schedule after build. FCM may arrive while splash is transitioning.
+    _openingPush=true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if(!mounted){_openingPush=false;return;}
+      final target=widget.notifications.takePendingOpen();
+      if(target==null){_openingPush=false;return;}
+      final id=(target['notification_id'] as int?)??0;
+      final lessonId=(target['lesson_id'] as int?)??0;
+      if(id>0) await widget.notifications.read(id);
+      if(!mounted || !widget.store.signedIn){_openingPush=false;return;}
+      if(lessonId>0){
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder:(_)=>LessonScreen(store:widget.store,id:lessonId)));
+      }else{
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder:(_)=>NotificationsScreen(
+            store:widget.store,
+            notifications:widget.notifications,
+            openNotificationId:id>0?id:null,
+          )));
+      }
+      _openingPush=false;
+      _checkPushRoute();
+    });
+  }
+
+  @override void dispose(){
+    widget.notifications.removeListener(_checkPushRoute);
+    widget.store.removeListener(_checkPushRoute);
+    super.dispose();
+  }
+
   @override Widget build(BuildContext context)=>AnimatedBuilder(animation:widget.store,builder:(context,_){
     final store=widget.store;
     // Recreate widget instances on session changes while preserving State by key.
