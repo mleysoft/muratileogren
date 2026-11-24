@@ -1,0 +1,22 @@
+MG İLE ÖĞREN – v1.1.3 ANDROID DERLEME DÜZELTMESİ
+
+Hatanın kaynağı: lib/home.dart, 61. satırdaki `const ConstrainedBox`.
+`ConstrainedBox` const constructor sağlamadığından Flutter derleyicisi hata verir.
+`const` ConstrainedBox önünden kaldırıldı; altındaki sabit BoxConstraints ve Text
+bileşenleri const bırakıldı.
+
+KÜÇÜK DÜZELTME PAKETİ:
+1. ZIP içindeki lib/home.dart dosyasını C:\Muratileogren\lib\home.dart üzerine yaz.
+2. CMD:
+   cd /d C:\Muratileogren
+   flutter run -d emulator-5554
+
+TAM PAKET:
+Tam ZIP'i mevcut proje klasörüne çıkar; android klasörünü silme.
+Gerekirse `flutter pub get` ardından `flutter run -d emulator-5554` kullan.
+
+`share_plus` Built-in Kotlin uyarısı ayrı bir gelecek sürüm uyarısıdır;
+buradaki `const` derleme hatasının nedeni değildir.
+
+Kontrol: kaynak dosya ve ZIP dosya bütünlüğü kontrol edildi.
+Bu ortamda Flutter SDK bulunmadığından `flutter build` testi yapılmadı.

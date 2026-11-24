@@ -1,0 +1,19 @@
+MG İLE ÖĞREN - ANDROID DERLEME DÜZELTMESİ v1.1.2
+
+Hata: PathNotFoundException ios/Runner/Assets.xcassets/AppIcon.appiconset/...
+Sebep: Windows'ta mevcut olmayan iOS klasörüne simge yazılmaya çalışılması.
+
+Düzeltilenler:
+- Windows'ta yalnızca Android simgesi üretilir (pubspec.yaml ios:false).
+- Mac için iOS simgesi ayrı flutter_launcher_icons_ios.yaml içindedir.
+- GUNCELLE_WINDOWS.bat artık flutter pub add ile paketleri gereksiz güncellemez.
+- Derleme önbelleği temizlenir, bağımlılıklar pubspec.yaml'dan yüklenir.
+- Mevcut android klasörü korunur.
+- Önceki sürümde onarılmış home.dart ve soluk ikonlu yeni splash_full.png dahildir.
+
+Kurulum:
+1. ZIP içeriğini C:\Muratileogren klasörüne kopyalayın.
+2. C:\Muratileogren\GUNCELLE_WINDOWS.bat çalıştırın.
+3. Tamamlanınca: flutter run -d emulator-5554
+
+Not: Flutter SDK bulunmadığı için bu ortamda gerçek derleme yapılamamıştır.
