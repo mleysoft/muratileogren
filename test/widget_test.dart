@@ -4,12 +4,12 @@ import 'package:murat_ile_ogren/theme.dart';
 import 'package:murat_ile_ogren/components.dart';
 
 void main() {
-  testWidgets('MG marka başlığı ve kimliği görünür', (tester) async {
+  testWidgets('Murat İle Öğren marka başlığı görünür', (tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: academyTheme(),
       home: const Scaffold(body: Center(child: LogoWordmark())),
     ));
-    expect(find.text('MG İle Öğren'), findsOneWidget);
+    expect(find.text('Murat İle Öğren'), findsOneWidget);
     expect(find.text('Dijital Eğitim Akademisi'), findsOneWidget);
   });
 

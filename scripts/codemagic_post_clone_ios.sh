@@ -36,6 +36,9 @@ print('Bundle ID: com.muratileogren.academy')
 print('App display name: MG İle Öğren')
 PYIOS
 
+echo '=== Configure Firebase/APNs native support ==='
+bash scripts/prepare_firebase_ios.sh
+
 echo '=== Install Flutter packages ==='
 flutter pub get
 

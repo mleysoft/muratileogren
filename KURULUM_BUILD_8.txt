@@ -1,0 +1,14 @@
+MG İle Öğren — iOS sürüm 1.1.6, build 8
+
+Apple App Store Connect aynı build 7 dosyasının ikinci yüklemesini reddetti.
+Bu düzeltme pubspec.yaml sürümünü 1.1.6+7 yerine 1.1.6+8 yaptı.
+
+1. Bu ZIP'i C:\Muratileogren içine açın ve pubspec.yaml dosyasının üstüne yazın.
+2. GitHub Desktop -> Commit to main -> Push origin.
+3. Codemagic'te ana dal (main) ile yeni build başlatın.
+4. Yükleme günlüğünde Version: 1.1.6, Version code: 8 kontrol edin.
+
+DİKKAT: Codemagic'de özel --build-number ayarı varsa +8 değerini ezmediğinden emin olun.
+Apple'ın daha önce 8 veya daha yüksek numarayı kabul etmesi durumunda sonraki kullanılmamış daha büyük sayıya geçin.
+
+Koddaki mevcut MG iOS ikon/splash ve post-clone betikleri korunmuştur.

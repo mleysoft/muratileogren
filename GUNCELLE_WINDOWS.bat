@@ -3,7 +3,7 @@ setlocal EnableExtensions
 chcp 65001 >nul
 cd /d "%~dp0"
 
-echo MG Ile Ogren v1.1.2 - Windows / Android derleme duzeltmesi
+echo Murat Ile Ogren v1.2.0 - Windows / Android Firebase ve video guncellemesi
 where flutter >nul 2>&1
 if errorlevel 1 (
   echo HATA: Flutter PATH icinde bulunamadi.
@@ -37,15 +37,22 @@ echo Not: Paketler zorla en yeni surumlere yukseltilemeyecek.
 call flutter pub get
 if errorlevel 1 goto fail
 
-echo [4/6] Android adi ve INTERNET izni uygulaniyor...
+echo [4/6] Firebase Android ayarlari kontrol ediliyor...
+if exist "firebase\google-services.json" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\setup_firebase_android.ps1"
+  if errorlevel 1 goto fail
+) else (
+  echo Firebase Android config eksik, push devre disi kalacak.
+)
+echo [5/7] Android adi ve INTERNET izni uygulaniyor...
 call dart run scripts\apply_brand.dart
 if errorlevel 1 goto fail
 
-echo [5/6] YALNIZCA ANDROID uygulama ikonu uretiliyor...
+echo [6/7] YALNIZCA ANDROID uygulama ikonu uretiliyor...
 call dart run flutter_launcher_icons
 if errorlevel 1 goto fail
 
-echo [6/6] Native splash uretiliyor...
+echo [7/7] Native splash uretiliyor...
 call dart run flutter_native_splash:create
 if errorlevel 1 goto fail
 

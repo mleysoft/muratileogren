@@ -14,7 +14,7 @@ class LogoWordmark extends StatelessWidget {
   @override Widget build(BuildContext context)=>Row(mainAxisSize:MainAxisSize.min,children:[
     ClipRRect(borderRadius:BorderRadius.circular(12),child:Image.asset('assets/logo.png',width:small?33:40,height:small?33:40)),
     const SizedBox(width:10),Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
-      Text('MG İle Öğren',style:TextStyle(fontSize:small?15:17,fontWeight:FontWeight.w800,letterSpacing:-.5,color:ink)),
+      Text('Murat İle Öğren',style:TextStyle(fontSize:small?15:17,fontWeight:FontWeight.w800,letterSpacing:-.5,color:ink)),
       if(!small) const Text('Dijital Eğitim Akademisi',style:TextStyle(color:muted,fontSize:10,fontWeight:FontWeight.w600,letterSpacing:.4)),
     ]),
   ]);

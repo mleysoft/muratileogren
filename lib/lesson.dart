@@ -107,75 +107,231 @@ class _RatingPickerState extends State<_RatingPicker>{
 }
 
 class LessonVideo extends StatefulWidget {
-  final AcademyStore store;final int lessonId,initialPosition;final VoidCallback onComplete;
-  const LessonVideo({super.key,required this.store,required this.lessonId,required this.initialPosition,required this.onComplete});
-  @override State<LessonVideo> createState()=>_LessonVideoState();
+  final AcademyStore store;
+  final int lessonId, initialPosition;
+  final VoidCallback onComplete;
+  const LessonVideo({super.key, required this.store, required this.lessonId,
+    required this.initialPosition, required this.onComplete});
+  @override State<LessonVideo> createState() => _LessonVideoState();
 }
+
 class _LessonVideoState extends State<LessonVideo> with WidgetsBindingObserver {
-  VideoPlayerController? controller;Timer? tick;String? error;bool ready=false;
-  int lastSent=0;bool completedSignal=false;
-  @override void initState(){super.initState();WidgetsBinding.instance.addObserver(this);load();}
-  Future<void> load()async{
-    final c=VideoPlayerController.networkUrl(widget.store.api.videoUri(widget.lessonId),httpHeaders:widget.store.api.authHeaders);
-    controller=c;
-    try{
-      await c.initialize();if(!mounted)return;
-      if(widget.initialPosition>0&&widget.initialPosition<c.value.duration.inSeconds)await c.seekTo(Duration(seconds:widget.initialPosition));
+  VideoPlayerController? controller;
+  Timer? tick;
+  String? error;
+  bool ready = false;
+  int lastSent = 0;
+  bool completedSignal = false;
+
+  @override void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    load();
+  }
+
+  Future<void> load() async {
+    final c = VideoPlayerController.networkUrl(
+      widget.store.api.videoUri(widget.lessonId),
+      httpHeaders: widget.store.api.authHeaders,
+    );
+    controller = c;
+    try {
+      await c.initialize();
+      if (!mounted) return;
+      if (widget.initialPosition > 0 &&
+          widget.initialPosition < c.value.duration.inSeconds) {
+        await c.seekTo(Duration(seconds: widget.initialPosition));
+      }
       c.addListener(onPosition);
-      setState(()=>ready=true);
-      tick=Timer.periodic(const Duration(seconds:10),(_){save();});
+      setState(() => ready = true);
+      tick = Timer.periodic(const Duration(seconds: 10), (_) => save());
       await c.play();
-    }catch(e){if(mounted)setState(()=>error='Video açılamadı. Sunucunun özel video depolama alanını kontrol et.');}
-  }
-  void onPosition(){final c=controller;if(c==null || !mounted)return;
-    if(c.value.isCompleted && !completedSignal){completedSignal=true;save(force:true);widget.onComplete();}
-    else if(ready && c.value.duration.inSeconds>0 && c.value.position.inSeconds >= c.value.duration.inSeconds*.9 && !completedSignal){
-      completedSignal=true;save(force:true);widget.onComplete();
+    } catch (_) {
+      if (mounted) setState(() => error = 'Video açılamadı. Bağlantıyı kontrol et.');
     }
-    setState((){});
   }
-  Future<void> save({bool force=false})async{
-    final c=controller;if(c==null||!ready||!widget.store.signedIn)return;
-    final pos=c.value.position.inSeconds;
-    if(!force && (pos-lastSent).abs()<5)return;
-    lastSent=pos;
-    try{await widget.store.api.updateProgress(widget.lessonId,pos,c.value.duration.inSeconds);}catch(_){} // don't interrupt playback
+
+  void onPosition() {
+    final c = controller;
+    if (c == null || !mounted || !c.value.isInitialized) return;
+    final seconds = c.value.duration.inSeconds;
+    final completed = c.value.isCompleted ||
+        (seconds > 0 && c.value.position.inSeconds >= seconds * .9);
+    if (completed && !completedSignal) {
+      completedSignal = true;
+      save(force: true);
+      widget.onComplete();
+    }
   }
-  @override void didChangeAppLifecycleState(AppLifecycleState state){if(state!=AppLifecycleState.resumed){controller?.pause();save(force:true);}}
-  @override void dispose(){WidgetsBinding.instance.removeObserver(this);tick?.cancel();save(force:true);controller?.removeListener(onPosition);controller?.dispose();super.dispose();}
-  String timestamp(Duration d){final s=d.inSeconds;return '${s~/60}:${(s%60).toString().padLeft(2,'0')}';}
-  Future<void> fullscreen()async{
-    final c=controller;if(c==null)return;
-    await Navigator.push(context,MaterialPageRoute(builder:(_)=>_FullscreenVideo(controller:c)));
+
+  Future<void> save({bool force = false}) async {
+    final c = controller;
+    if (c == null || !ready || !widget.store.signedIn || !c.value.isInitialized) return;
+    final pos = c.value.position.inSeconds;
+    if (!force && (pos-lastSent).abs() < 5) return;
+    lastSent = pos;
+    try {
+      await widget.store.api.updateProgress(widget.lessonId,pos,c.value.duration.inSeconds);
+    } catch (_) { /* Offline progress is retried on the next tick. */ }
   }
-  @override Widget build(BuildContext context){
-    if(error!=null)return Container(height:210,margin:const EdgeInsets.symmetric(horizontal:20),padding:const EdgeInsets.all(22),decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(20)),child:StateMessage(error!,icon:Icons.error_outline));
-    if(!ready||controller==null)return Container(height:205,margin:const EdgeInsets.symmetric(horizontal:20),decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(21)),child:const Center(child:CircularProgressIndicator(color:lime)));
-    final c=controller!;
-    return Container(margin:const EdgeInsets.symmetric(horizontal:16),decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(21)),clipBehavior:Clip.antiAlias,child:Column(children:[
-      AspectRatio(aspectRatio:c.value.aspectRatio>0?c.value.aspectRatio:16/9,child:GestureDetector(onTap:()=>setState(()=>c.value.isPlaying?c.pause():c.play()),child:Stack(alignment:Alignment.center,children:[
-        VideoPlayer(c),if(!c.value.isPlaying)Container(decoration:BoxDecoration(shape:BoxShape.circle,color:Colors.black.withValues(alpha:.5)),child:const Padding(padding:EdgeInsets.all(14),child:Icon(Icons.play_arrow,color:Colors.white,size:34)))
-      ]))),
-      Padding(padding:const EdgeInsets.fromLTRB(13,4,9,10),child:Column(children:[
-        VideoProgressIndicator(c,allowScrubbing:true,padding:const EdgeInsets.symmetric(vertical:8),colors:VideoProgressColors(playedColor:lime,bufferedColor:Colors.white24,backgroundColor:Colors.white10)),
-        Row(children:[IconButton(icon:Icon(c.value.isPlaying?Icons.pause_rounded:Icons.play_arrow_rounded,color:Colors.white),onPressed:()=>setState(()=>c.value.isPlaying?c.pause():c.play())),
-          Text('${timestamp(c.value.position)} / ${timestamp(c.value.duration)}',style:const TextStyle(fontSize:11,color:Colors.white70)),
-          const Spacer(),IconButton(onPressed:fullscreen,icon:const Icon(Icons.fullscreen_rounded,color:Colors.white))])
-      ]))
-    ]));
+
+  @override void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      controller?.pause();
+      save(force:true);
+    }
+  }
+
+  @override void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    tick?.cancel();
+    save(force:true);
+    controller?.removeListener(onPosition);
+    controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> fullscreen() async {
+    final c = controller;
+    if (c == null) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => _FullscreenVideo(controller:c)));
+    if (mounted) setState(() {});
+  }
+
+  @override Widget build(BuildContext context) {
+    if (error != null) {
+      return Padding(padding:const EdgeInsets.all(20),
+        child:StateMessage(error!,retry:(){setState(() {error=null;ready=false;});load();}));
+    }
+    if (!ready || controller == null) {
+      return Container(height:210,margin:const EdgeInsets.symmetric(horizontal:16),
+        decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(18)),
+        child:const Center(child:CircularProgressIndicator(color:lime)));
+    }
+    return Padding(padding:const EdgeInsets.symmetric(horizontal:16),
+      child:ClipRRect(borderRadius:BorderRadius.circular(17),child:
+        _PlayerSurface(controller:controller!,fullscreen:false,onFullscreen:fullscreen)));
   }
 }
-class _FullscreenVideo extends StatefulWidget{
-  final VideoPlayerController controller;const _FullscreenVideo({required this.controller});
+
+/// The same complete controls are used in embedded and landscape playback.
+/// Controls: play/pause, 10-second skip, seek, playback speed, rotation/fullscreen.
+class _PlayerSurface extends StatefulWidget {
+  final VideoPlayerController controller;
+  final bool fullscreen;
+  final VoidCallback? onFullscreen;
+  const _PlayerSurface({required this.controller,required this.fullscreen,this.onFullscreen});
+  @override State<_PlayerSurface> createState() => _PlayerSurfaceState();
+}
+class _PlayerSurfaceState extends State<_PlayerSurface> {
+  bool showing=true;
+  Timer? _hide;
+  @override void initState(){super.initState();widget.controller.addListener(_updated);}
+  @override void didUpdateWidget(covariant _PlayerSurface old){
+    super.didUpdateWidget(old);
+    if(old.controller!=widget.controller){old.controller.removeListener(_updated);widget.controller.addListener(_updated);}
+  }
+  void _updated(){if(mounted)setState((){});}
+  void _show(){
+    _hide?.cancel();
+    if(mounted)setState(()=>showing=true);
+    _hide=Timer(const Duration(seconds:4),(){if(mounted&&widget.controller.value.isPlaying)setState(()=>showing=false);});
+  }
+  void _playPause(){final c=widget.controller;c.value.isPlaying?c.pause():c.play();_show();}
+  void _jump(int seconds){
+    final c=widget.controller;
+    final total=c.value.duration.inMilliseconds;
+    final ms=(c.value.position.inMilliseconds+seconds*1000).clamp(0,total).toInt();
+    c.seekTo(Duration(milliseconds:ms));_show();
+  }
+  String _clock(Duration duration){final s=duration.inSeconds;return s>=3600?'${s~/3600}:${((s%3600)~/60).toString().padLeft(2,'0')}:${(s%60).toString().padLeft(2,'0')}':'${s~/60}:${(s%60).toString().padLeft(2,'0')}';}
+  void _speed(){
+    _show();
+    showModalBottomSheet<void>(context:context,showDragHandle:true,builder:(ctx)=>SafeArea(child:Column(mainAxisSize:MainAxisSize.min,children:[
+      const ListTile(title:Text('Oynatma hızı',style:TextStyle(fontWeight:FontWeight.w800))),
+      for(final speed in [0.75,1.0,1.25,1.5,2.0])
+        ListTile(title:Text('${speed}×'),trailing:(widget.controller.value.playbackSpeed-speed).abs()<.01?const Icon(Icons.check,color:forest):null,
+          onTap:(){widget.controller.setPlaybackSpeed(speed);Navigator.pop(ctx);_show();}),
+    ])));
+  }
+  @override void dispose(){_hide?.cancel();widget.controller.removeListener(_updated);super.dispose();}
+  @override Widget build(BuildContext context){
+    final c=widget.controller,v=c.value;
+    final w=MediaQuery.sizeOf(context).width;
+    final full=widget.fullscreen;
+    final barColor=Colors.black.withValues(alpha:.65);
+    final ratio=v.aspectRatio>0?v.aspectRatio:16/9;
+    return AspectRatio(aspectRatio:full?MediaQuery.sizeOf(context).aspectRatio:ratio,
+      child:ColoredBox(color:Colors.black,child:GestureDetector(
+        behavior:HitTestBehavior.opaque,onTap:()=>showing?setState(()=>showing=false):_show(),
+        child:Stack(children:[
+          Positioned.fill(child:Center(child:AspectRatio(aspectRatio:ratio,child:VideoPlayer(c)))),
+          if(v.isBuffering)const Center(child:CircularProgressIndicator(color:lime)),
+          AnimatedOpacity(opacity:showing?1:0,duration:const Duration(milliseconds:180),
+            child:IgnorePointer(ignoring:!showing,child:Stack(children:[
+              Positioned.fill(child:ColoredBox(color:Colors.black.withValues(alpha:.22))),
+              Center(child:Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+                _roundButton(Icons.replay_10_rounded,()=>_jump(-10),full?36:28),
+                SizedBox(width:full?44:22),
+                _roundButton(v.isPlaying?Icons.pause_rounded:Icons.play_arrow_rounded,_playPause,full?54:43),
+                SizedBox(width:full?44:22),
+                _roundButton(Icons.forward_10_rounded,()=>_jump(10),full?36:28),
+              ])),
+              Positioned(bottom:0,left:0,right:0,child:ColoredBox(color:barColor,child:Padding(
+                padding:EdgeInsets.fromLTRB(full?24:10,4,full?24:10,full?10:4),
+                child:Column(mainAxisSize:MainAxisSize.min,children:[
+                  Row(children:[
+                    Text(_clock(v.position),style:const TextStyle(color:Colors.white,fontSize:11)),
+                    Expanded(child:SliderTheme(data:SliderTheme.of(context).copyWith(
+                      trackHeight:3,thumbShape:const RoundSliderThumbShape(enabledThumbRadius:6),
+                      overlayShape:const RoundSliderOverlayShape(overlayRadius:12)),child:Slider(
+                        min:0,max:v.duration.inMilliseconds>0?v.duration.inMilliseconds.toDouble():1,
+                        value:v.position.inMilliseconds.toDouble().clamp(0.0,v.duration.inMilliseconds>0?v.duration.inMilliseconds.toDouble():1.0).toDouble(),
+                        activeColor:lime,inactiveColor:Colors.white38,
+                        onChanged:(n)=>c.seekTo(Duration(milliseconds:n.round()))))),
+                    Text(_clock(v.duration),style:const TextStyle(color:Colors.white,fontSize:11)),
+                  ]),
+                  Row(children:[
+                    const Icon(Icons.hd_outlined,size:17,color:Colors.white70),
+                    const SizedBox(width:6),
+                    const Text('DERS VİDEOSU',style:TextStyle(fontSize:10,color:Colors.white70,letterSpacing:.7)),
+                    const Spacer(),
+                    TextButton(onPressed:_speed,child:Text('${v.playbackSpeed}×',style:const TextStyle(color:Colors.white,fontWeight:FontWeight.w700))),
+                    IconButton(tooltip:full?'Yatay ekranı kapat':'Yatay tam ekran',
+                      icon:Icon(full?Icons.fullscreen_exit_rounded:Icons.screen_rotation_alt_rounded,color:Colors.white),
+                      onPressed:full?()=>Navigator.of(context).pop():widget.onFullscreen),
+                  ])
+                ]))))
+            ]))),
+        ]))));
+  }
+  Widget _roundButton(IconData icon,VoidCallback action,double iconSize)=>Material(
+    color:Colors.black.withValues(alpha:.55),shape:const CircleBorder(),child:InkWell(
+      customBorder:const CircleBorder(),onTap:action,child:Padding(
+      padding:EdgeInsets.all(widget.fullscreen?13:10),child:Icon(icon,size:iconSize,color:Colors.white))));
+}
+
+class _FullscreenVideo extends StatefulWidget {
+  final VideoPlayerController controller;
+  const _FullscreenVideo({required this.controller});
   @override State<_FullscreenVideo> createState()=>_FullscreenVideoState();
 }
-class _FullscreenVideoState extends State<_FullscreenVideo>{
-  @override void initState(){super.initState();SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft,DeviceOrientation.landscapeRight]);SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);widget.controller.addListener(update);}
-  void update(){if(mounted)setState((){});}
-  @override void dispose(){widget.controller.removeListener(update);SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);super.dispose();}
-  @override Widget build(BuildContext context)=>Scaffold(backgroundColor:Colors.black,body:SafeArea(child:Stack(children:[
-    Center(child:AspectRatio(aspectRatio:widget.controller.value.aspectRatio,child:VideoPlayer(widget.controller))),
-    Positioned(top:4,left:6,child:IconButton(onPressed:()=>Navigator.pop(context),icon:const Icon(Icons.close,color:Colors.white))),
-    Positioned(bottom:5,left:15,right:15,child:VideoProgressIndicator(widget.controller,allowScrubbing:true,colors:VideoProgressColors(playedColor:lime)))
-  ])));
+class _FullscreenVideoState extends State<_FullscreenVideo> {
+  @override void initState(){
+    super.initState();
+    SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft,DeviceOrientation.landscapeRight]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+  @override void dispose(){
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    super.dispose();
+  }
+  @override Widget build(BuildContext context)=>Scaffold(backgroundColor:Colors.black,
+    body:SafeArea(child:Stack(children:[
+      Center(child:_PlayerSurface(controller:widget.controller,fullscreen:true)),
+      Positioned(top:4,left:8,child:IconButton(onPressed:()=>Navigator.of(context).pop(),
+        icon:const Icon(Icons.close_rounded,color:Colors.white))),
+    ])));
 }

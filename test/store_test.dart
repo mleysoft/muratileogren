@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:murat_ile_ogren/main.dart';
+import 'package:murat_ile_ogren/notifications.dart';
 import 'package:murat_ile_ogren/theme.dart';
 import 'package:murat_ile_ogren/api.dart';
 import 'package:murat_ile_ogren/store.dart';
@@ -37,7 +38,7 @@ void main() {
       'subscription':<String,dynamic>{'active':false},
     };
     await tester.pumpWidget(MaterialApp(theme:academyTheme(),
-      home:AcademyShell(store:store)));
+      home:AcademyShell(store:store,notifications:AcademyNotifications(store))));
     await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pumpAndSettle();
     expect(find.text('Merhaba, Deneme.'),findsOneWidget);

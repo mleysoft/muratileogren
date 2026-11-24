@@ -12,7 +12,7 @@ class HomeScreen extends StatelessWidget {
   @override Widget build(BuildContext context){
     final w=MediaQuery.sizeOf(context).width;
     return RefreshIndicator(onRefresh:store.reload,child:ListView(padding:const EdgeInsets.fromLTRB(18,17,18,44),children:[
-      const Eyebrow('MG Akademi  /  Dijital öğrenme'),const SizedBox(height:14),
+      const Eyebrow('Murat İle Öğren Akademi  /  Dijital öğrenme'),const SizedBox(height:14),
       _Hero(store:store),const SizedBox(height:20),
       Row(children:[_InfoStat('${store.categories.length}','Eğitim programı'),const SizedBox(width:9),const _InfoStat('2 / hafta','Yeni eğitim'),const SizedBox(width:9),const _InfoStat('7/24','Öğrenme')]),
       if(store.continuing.isNotEmpty)...[
@@ -31,7 +31,7 @@ class HomeScreen extends StatelessWidget {
       if(!store.signedIn)...[const SizedBox(height:19),OutlinedButton.icon(
         onPressed:()=>Navigator.push(context,MaterialPageRoute(builder:(_)=>LoginScreen(store:store))),
         icon:const Icon(Icons.person_outline_rounded),label:const Text('Ücretsiz hesabınla giriş yap'))],
-      const SizedBox(height:12),Center(child:Text('MG İLE ÖĞREN  •  muratileogren.com',style:TextStyle(color:muted.withValues(alpha:.7),fontSize:10,letterSpacing:.8,fontWeight:FontWeight.w700))),
+      const SizedBox(height:12),Center(child:Text('MURAT İLE ÖĞREN  •  muratileogren.com',style:TextStyle(color:muted.withValues(alpha:.7),fontSize:10,letterSpacing:.8,fontWeight:FontWeight.w700))),
     ]));
   }
 }

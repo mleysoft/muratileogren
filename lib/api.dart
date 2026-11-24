@@ -64,6 +64,10 @@ class AcademyApi {
   Future<List<dynamic>> plans() async => List<dynamic>.from(await request('GET', 'plans'));
   Future<List<dynamic>> progress() async => List<dynamic>.from(await request('GET', 'me/progress'));
   Future<List<dynamic>> payments() async => List<dynamic>.from(await request('GET', 'me/payments'));
+  Future<Map<String,dynamic>> notifications() async => Map<String,dynamic>.from(await request('GET','notifications'));
+  Future<void> markNotificationRead(int id) async {await request('POST','notifications/$id/read',json:{});}
+  Future<void> registerPush(String token,String platform) async {await request('POST','push/register',json:{'token':token,'platform':platform});}
+  Future<void> unregisterPush() async {await request('POST','push/unregister',json:{});}
   Future<Map<String, dynamic>> me() async => Map<String, dynamic>.from(await request('GET', 'me'));
   Future<Map<String, dynamic>> login(String email, String password) async => Map<String, dynamic>.from(
       await request('POST', 'auth/login', json: {'email': email, 'password': password, 'device': 'Flutter Mobile'}));

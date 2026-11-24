@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'api.dart';
 
+
 class AcademyStore extends ChangeNotifier {
   final AcademyApi api;
   AcademyStore(this.api);
@@ -10,6 +11,7 @@ class AcademyStore extends ChangeNotifier {
   List<Map<String,dynamic>> categories=[];
   List<Map<String,dynamic>> latest=[];
   List<Map<String,dynamic>> continuing=[];
+  Future<void> Function()? beforeSignOut;
   bool busy=false;
   String? error;
   int _sessionVersion=0;
@@ -109,6 +111,7 @@ class AcademyStore extends ChangeNotifier {
     error=null;
     busy=false;
     notifyListeners();
+    try{await beforeSignOut?.call();}catch(_){}
     await api.logout(); // Clears secure storage before attempting remote revoke.
     unawaited(reload(preserveAuthOnTemporaryFailure:true));
   }

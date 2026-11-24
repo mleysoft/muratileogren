@@ -93,7 +93,7 @@ class _AuthHero extends StatelessWidget {
         Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),
           decoration:BoxDecoration(color:lime.withValues(alpha:.16),
             borderRadius:BorderRadius.circular(30)),
-          child:const Text('MG  /  DİJİTAL AKADEMİ',
+          child:const Text('MURAT İLE ÖĞREN  /  DİJİTAL AKADEMİ',
             style:TextStyle(color:lime,fontSize:9,fontWeight:FontWeight.w800,
               letterSpacing:1.1))),
         const SizedBox(height:16),
@@ -394,7 +394,7 @@ class ProfileScreen extends StatelessWidget{
     ]);
     final sub=u['subscription'] is Map?Map<String,dynamic>.from(u['subscription']):<String,dynamic>{};
     return RefreshIndicator(onRefresh:store.reload,child:ListView(padding:const EdgeInsets.fromLTRB(20,15,20,45),children:[
-      const Eyebrow('MG Akademi • Üyelik merkezi'),const SizedBox(height:11),
+      const Eyebrow('Murat İle Öğren Akademi • Üyelik merkezi'),const SizedBox(height:11),
       Text('Merhaba, ${str(u['name']).split(' ').first}.',style:Theme.of(context).textTheme.headlineLarge),const SizedBox(height:9),
       Text(str(u['email']),style:const TextStyle(color:muted,fontSize:13)),const SizedBox(height:25),
       Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(24)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -417,7 +417,7 @@ class ProfileScreen extends StatelessWidget{
           }
         }catch(e){if(context.mounted)showFailure(context,e);}
       },icon:const Icon(Icons.logout),label:const Text('Çıkış yap')),
-      const SizedBox(height:19),const Center(child:Text('MG İLE ÖĞREN • v1.1.5',style:TextStyle(color:muted,letterSpacing:1.2,fontSize:10,fontWeight:FontWeight.w700))),
+      const SizedBox(height:19),const Center(child:Text('MURAT İLE ÖĞREN • v1.2.0',style:TextStyle(color:muted,letterSpacing:1.2,fontSize:10,fontWeight:FontWeight.w700))),
     ]));
   }
 }
