@@ -24,6 +24,12 @@ class AcademyNotifications extends ChangeNotifier with WidgetsBindingObserver {
     try {
       if (Firebase.apps.isEmpty) await Firebase.initializeApp();
       _configured=true;
+      // iOS: allow an incoming notification to display while the app is open.
+      if (Platform.isIOS) {
+        await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+          alert: true, badge: true, sound: true,
+        );
+      }
       _tokenStream=FirebaseMessaging.instance.onTokenRefresh.listen((token) {
         if(store.signedIn) _register(token);
       });

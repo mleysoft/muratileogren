@@ -37,7 +37,11 @@ echo Not: Paketler zorla en yeni surumlere yukseltilemeyecek.
 call flutter pub get
 if errorlevel 1 goto fail
 
-echo [4/6] Firebase Android ayarlari kontrol ediliyor...
+echo [4/7] Android Gradle Kotlin uyumlulugu kontrol ediliyor...
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\fix_gradle_kotlin.ps1"
+if errorlevel 1 goto fail
+
+echo [5/7] Firebase Android ayarlari kontrol ediliyor...
 if exist "firebase\google-services.json" (
   powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\setup_firebase_android.ps1"
   if errorlevel 1 goto fail

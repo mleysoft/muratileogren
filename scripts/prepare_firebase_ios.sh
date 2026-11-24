@@ -29,6 +29,12 @@ require 'xcodeproj'
 proj=Xcodeproj::Project.open('ios/Runner.xcodeproj')
 runner=proj.targets.find{|t|t.name=='Runner'}
 raise 'Runner target not found' unless runner
+# Xcode Push Notifications capability; Apple App ID must also enable this.
+attributes=proj.root_object.attributes['TargetAttributes'] ||= {}
+runner_attributes=attributes[runner.uuid] ||= {}
+capabilities=runner_attributes['SystemCapabilities'] ||= {}
+capabilities['com.apple.Push']={'enabled'=>1}
+capabilities['com.apple.BackgroundModes']={'enabled'=>1}
 runner.build_configurations.each do |cfg|
   cfg.build_settings['CODE_SIGN_ENTITLEMENTS']='Runner/Runner.entitlements'
 end
