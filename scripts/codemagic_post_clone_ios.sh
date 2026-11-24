@@ -39,6 +39,9 @@ PYIOS
 echo '=== Configure Firebase/APNs native support ==='
 bash scripts/prepare_firebase_ios.sh
 
+echo '=== Configure iOS icon badge synchronization ==='
+python3 scripts/enable_native_badge_ios.py
+
 echo '=== Install Flutter packages ==='
 flutter pub get
 

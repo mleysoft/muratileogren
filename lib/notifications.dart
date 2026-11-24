@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'api.dart';
@@ -107,12 +108,21 @@ class AcademyNotifications extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  // The in-app unread badge is drawn by the Flutter shell from `unread`.
-  // Device icon badges are delivered in the server FCM/APNs payload. Android
-  // launcher dots/numeric badges depend on launcher notification support.
-  // Avoid an extra plugin so an absent package cannot break app startup.
+  // Update icon badges natively, without any third-party badge plugin.
+  // iOS: immediately update the SpringBoard badge after read/logout.
+  // Android: remove outstanding tray notifications when no unread items
+  // remain; number/dot rendering depends on the device launcher.
+  static const MethodChannel _badgeChannel = MethodChannel('muratileogren/notification_badge');
   Future<void> _setBadge(int count) async {
-    // Do not update the phone's launcher badge from this method.
+    try {
+      await _badgeChannel.invokeMethod<void>('setBadge', <String, int>{
+        'count': count.clamp(0, 999).toInt(),
+      });
+    } on MissingPluginException {
+      // Native shell has not yet been regenerated with the channel bridge.
+    } on PlatformException {
+      // Permission/launcher may not support app icon badges.
+    }
   }
 
   Future<void> registerDevice() async {
@@ -197,6 +207,22 @@ class AcademyNotifications extends ChangeNotifier with WidgetsBindingObserver {
     await refresh();
   }
 
+  Future<void> deleteRead(int id) async {
+    if (!store.signedIn || id <= 0) return;
+    final item = find(id);
+    if (item == null || item['read_at'] == null) {
+      throw StateError('Yalnızca okunmuş bildirimler silinebilir.');
+    }
+    final token = store.api.token;
+    final generation = _generation;
+    // Keep the row visible until the server confirms deletion.
+    await store.api.deleteReadNotification(id);
+    if (store.signedIn && token == store.api.token && generation == _generation) {
+      items = items.where((e) => '${e['id']}' != '$id').toList();
+      notifyListeners();
+    }
+  }
+
   Map<String,dynamic>? find(int id) {
     for (final item in items) { if ('${item['id']}' == '$id') return item; }
     return null;
@@ -238,60 +264,229 @@ class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key,required this.notifications,required this.store,this.openNotificationId});
   @override State<NotificationsScreen> createState()=>_NotificationsScreenState();
 }
+
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  bool initialOpened=false;
-  @override void initState() {
+  bool initialOpened = false;
+  int selectedTab = 0; // 0 unread, 1 read
+  int? swipedNotificationId;
+  double swipeDistance = 0;
+  int? deletingId;
+
+  @override
+  void initState() {
     super.initState();
     unawaited(_load());
   }
+
   Future<void> _load() async {
     await widget.notifications.refresh();
     if (mounted && !initialOpened && widget.openNotificationId != null) {
-      initialOpened=true;
-      var item=widget.notifications.find(widget.openNotificationId!);
-      if(item == null) {
-        try { item = await widget.store.api.notificationDetail(widget.openNotificationId!); }
-        catch (_) { /* May have been deleted, revoked or outside inbox history. */ }
+      initialOpened = true;
+      var item = widget.notifications.find(widget.openNotificationId!);
+      if (item == null) {
+        try {
+          item = await widget.store.api.notificationDetail(widget.openNotificationId!);
+        } catch (_) {
+          // It may have been deleted or may belong to another account.
+        }
       }
       if (item != null && mounted) await _open(item);
     }
   }
+
   Future<void> _open(Map<String,dynamic> item) async {
-    final id=int.tryParse('${item['id']}')??0;
-    final lessonId=int.tryParse('${item['lesson_id']}')??0;
-    await widget.notifications.read(id);
+    final id = int.tryParse('${item['id']}') ?? 0;
+    final lessonId = int.tryParse('${item['lesson_id']}') ?? 0;
+    if (item['read_at'] == null) await widget.notifications.read(id);
     if (!mounted) return;
-    await Navigator.push(context,MaterialPageRoute(builder:(_) => lessonId > 0
-       ? LessonScreen(store:widget.store,id:lessonId)
-       : NotificationDetailScreen(item:item)));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => lessonId > 0
+      ? LessonScreen(store: widget.store, id: lessonId)
+      : NotificationDetailScreen(item: item)));
   }
-  @override Widget build(BuildContext context)=>Scaffold(
-    appBar:AppBar(title:const Text('Bildirimler',style:TextStyle(fontWeight:FontWeight.w800))),
-    body:AnimatedBuilder(animation:widget.notifications,builder:(context,_){
-      final n=widget.notifications;
-      if(!widget.store.signedIn)return const Center(child:Text('Bildirimleri görmek için giriş yap.'));
-      // Read messages no longer appear in this inbox.
-      final visible=n.items.where((item)=>item['read_at']==null).toList();
-      if(visible.isEmpty)return Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
-        const Icon(Icons.notifications_none_rounded,size:58,color:forest),const SizedBox(height:12),
-        const Text('Okunmamış bildirimin yok'),const SizedBox(height:10),
-        TextButton(onPressed:n.refresh,child:const Text('Yenile'))]));
-      return RefreshIndicator(onRefresh:n.refresh,child:ListView.separated(
-        padding:const EdgeInsets.all(18),itemCount:visible.length,
-        separatorBuilder:(_,__)=>const SizedBox(height:9),
-        itemBuilder:(context,i){
-          final item=visible[i];
-          final kind=item['kind']?.toString()??'';
-          return Material(color:const Color(0xFFF0F7E9),borderRadius:BorderRadius.circular(18),
-            child:InkWell(borderRadius:BorderRadius.circular(18),onTap:()=>_open(item),
-              child:Padding(padding:const EdgeInsets.all(16),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                Icon(kind=='lesson'?Icons.menu_book_rounded:kind=='resume'?Icons.play_circle_outline:Icons.notifications_outlined,color:forest),
-                const SizedBox(width:13),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                  Text(item['title']?.toString()??'',style:const TextStyle(fontWeight:FontWeight.w900)),
-                  const SizedBox(height:6),Text(item['body']?.toString()??'',style:const TextStyle(color:muted,height:1.4)),
-                  const SizedBox(height:8),Text(item['created_at']?.toString()??'',style:const TextStyle(color:muted,fontSize:11)),
-                ])),Container(width:8,height:8,decoration:const BoxDecoration(color:Colors.red,shape:BoxShape.circle)),
-              ]))));
-        }));
-    }));
+
+  Future<void> _delete(int id) async {
+    if (deletingId != null) return;
+    setState(() => deletingId = id);
+    try {
+      await widget.notifications.deleteRead(id);
+      if (!mounted) return;
+      setState(() {
+        swipedNotificationId = null;
+        swipeDistance = 0;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bildirim silindi.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Bildirim silinemedi: $e')));
+    } finally {
+      if (mounted) setState(() => deletingId = null);
+    }
+  }
+
+  void _onSwipeUpdate(int id, DragUpdateDetails details) {
+    if (deletingId != null) return;
+    setState(() {
+      if (swipedNotificationId != id) {
+        swipedNotificationId = id;
+        swipeDistance = 0;
+      }
+      swipeDistance = (swipeDistance + details.delta.dx).clamp(-86.0, 0.0);
+    });
+  }
+
+  void _onSwipeEnd(int id) {
+    setState(() {
+      if (swipedNotificationId == id && swipeDistance <= -32) {
+        swipeDistance = -86;
+      } else {
+        swipedNotificationId = null;
+        swipeDistance = 0;
+      }
+    });
+  }
+
+  Widget _notificationCard(Map<String,dynamic> item, {required bool isRead}) {
+    final id = int.tryParse('${item['id']}') ?? 0;
+    final kind = item['kind']?.toString() ?? '';
+    final slide = isRead && swipedNotificationId == id ? swipeDistance : 0.0;
+    final foreground = Material(
+      color: isRead ? Colors.white : const Color(0xFFF0F7E9),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () async {
+          if (slide != 0) {
+            setState(() { swipedNotificationId = null; swipeDistance = 0; });
+            return;
+          }
+          await _open(item);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(kind == 'lesson' ? Icons.menu_book_rounded
+              : kind == 'resume' ? Icons.play_circle_outline
+              : Icons.notifications_outlined, color: forest),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(item['title']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              Text(item['body']?.toString() ?? '', style: const TextStyle(color: muted, height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 8),
+              Text(item['created_at']?.toString() ?? '', style: const TextStyle(color: muted, fontSize: 11)),
+            ])),
+            if (!isRead) Container(width: 8,height: 8,decoration: const BoxDecoration(color: Colors.red,shape: BoxShape.circle)),
+          ]),
+        ),
+      ),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2EAE2)),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: Stack(children: [
+        if (isRead)
+          Positioned.fill(child: Align(alignment: Alignment.centerRight, child: SizedBox(
+            width: 86, child: Material(color: const Color(0xFFCF3343), child: InkWell(
+              onTap: deletingId == id ? null : () => _delete(id),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                deletingId == id
+                    ? const SizedBox(width: 22,height: 22, child: CircularProgressIndicator(color: Colors.white,strokeWidth: 2))
+                    : const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 26),
+                const SizedBox(height: 3),
+                const Text('Sil',style: TextStyle(color: Colors.white,fontSize: 12,fontWeight: FontWeight.bold)),
+              ]),
+            )),
+          ))),
+        GestureDetector(
+          onHorizontalDragUpdate: isRead ? (d) => _onSwipeUpdate(id, d) : null,
+          onHorizontalDragEnd: isRead ? (_) => _onSwipeEnd(id) : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            transform: Matrix4.translationValues(slide, 0, 0),
+            child: foreground,
+          ),
+        ),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Bildirimler', style: TextStyle(fontWeight: FontWeight.w800))),
+    body: AnimatedBuilder(animation: widget.notifications, builder: (context, _) {
+      final n = widget.notifications;
+      if (!widget.store.signedIn) return const Center(child: Text('Bildirimleri görmek için giriş yap.'));
+      final unreadItems = n.items.where((i) => i['read_at'] == null).toList();
+      final readItems = n.items.where((i) => i['read_at'] != null).toList();
+      final visible = selectedTab == 0 ? unreadItems : readItems;
+      return Column(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 15, 16, 8), child: Row(children: [
+          _tabButton('Okunmamış', unreadItems.length, 0),
+          const SizedBox(width: 9),
+          _tabButton('Okunmuş', readItems.length, 1),
+        ])),
+        Expanded(child: RefreshIndicator(
+          onRefresh: n.refresh,
+          child: visible.isEmpty
+            ? ListView(children: [SizedBox(
+              height: MediaQuery.sizeOf(context).height * .55,
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.notifications_none_rounded, size: 54, color: forest),
+                const SizedBox(height: 12),
+                Text(selectedTab == 0 ? 'Okunmamış bildirimin yok' : 'Okunmuş bildirimin yok'),
+                const SizedBox(height: 8),
+                Text(selectedTab == 0 ? 'Okuduğun bildirimler Okunmuş sekmesinde saklanır.'
+                  : 'Okunan duyuru ve ders bildirimlerini burada görebilirsin.',
+                  style: const TextStyle(color: muted,fontSize: 12),textAlign: TextAlign.center),
+              ]),
+            )])
+            : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+              itemCount: visible.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, i) => _notificationCard(visible[i], isRead: selectedTab == 1),
+            ),
+        )),
+      ]);
+    }),
+  );
+
+  Widget _tabButton(String label, int count, int index) {
+    final active = selectedTab == index;
+    return Expanded(child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => setState(() {
+        selectedTab = index;
+        swipedNotificationId = null;
+        swipeDistance = 0;
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 8),
+        decoration: BoxDecoration(
+          color: active ? forest : Colors.white,
+          border: Border.all(color: active ? forest : const Color(0xFFE2EAE2)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Flexible(child: Text(label,overflow: TextOverflow.ellipsis,style: TextStyle(color: active ? Colors.white : forest,fontWeight: FontWeight.w700,fontSize: 13))),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7,vertical: 2),
+            decoration: BoxDecoration(
+              color: active ? Colors.white.withValues(alpha: .18) : const Color(0xFFF0F7E9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text('$count',style: TextStyle(fontSize: 12,color: active ? Colors.white : forest,fontWeight: FontWeight.w800)),
+          ),
+        ]),
+      ),
+    ));
+  }
 }

@@ -67,6 +67,7 @@ class AcademyApi {
   Future<Map<String,dynamic>> notifications() async => Map<String,dynamic>.from(await request('GET','notifications'));
   Future<Map<String,dynamic>> notificationDetail(int id) async => Map<String,dynamic>.from(await request('GET','notifications/$id'));
   Future<void> markNotificationRead(int id) async {await request('POST','notifications/$id/read',json:{});}
+  Future<void> deleteReadNotification(int id) async {await request('DELETE','notifications/$id');}
   Future<void> registerPush(String token,String platform) async {await request('POST','push/register',json:{'token':token,'platform':platform});}
   Future<void> unregisterPush() async {await request('POST','push/unregister',json:{});}
   Future<Map<String, dynamic>> me() async => Map<String, dynamic>.from(await request('GET', 'me'));

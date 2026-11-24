@@ -1,7 +1,7 @@
 name: murat_ile_ogren
 description: Murat İle Öğren - gerçek Flutter iOS ve Android eğitim uygulaması
 publish_to: none
-version: 1.2.6+13
+version: 1.2.9+15
 environment:
   sdk: '>=3.6.0 <4.0.0'
 dependencies:

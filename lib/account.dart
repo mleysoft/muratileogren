@@ -18,7 +18,10 @@ class _AuthShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor:paper,
-    body:SafeArea(child:Stack(children:[
+    body:SafeArea(child:GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child:Stack(children:[
       Positioned(top:-135,right:-145,child:IgnorePointer(child:Container(
         width:310,height:310,decoration:BoxDecoration(
           color:lime.withValues(alpha:.11),shape:BoxShape.circle)))),
@@ -74,7 +77,28 @@ class _AuthShell extends StatelessWidget {
           ]),
         )),
       ),
-    ])),
+      if (MediaQuery.viewInsetsOf(context).bottom > 0)
+        Positioned(
+          bottom: 12, right: 14,
+          child:SafeArea(child:Material(
+            color:forest,
+            elevation:7,
+            borderRadius:BorderRadius.circular(22),
+            child:InkWell(
+              borderRadius:BorderRadius.circular(22),
+              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+              child:const Padding(
+                padding:EdgeInsets.symmetric(horizontal:14,vertical:10),
+                child:Row(mainAxisSize:MainAxisSize.min,children:[
+                  Icon(Icons.keyboard_hide_rounded,color:Colors.white,size:19),
+                  SizedBox(width:7),
+                  Text('Klavyeyi kapat',style:TextStyle(color:Colors.white,fontSize:12,fontWeight:FontWeight.w700)),
+                ]),
+              ),
+            ),
+          )),
+        ),
+    ]))),
   );
 }
 
