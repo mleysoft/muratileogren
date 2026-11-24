@@ -1,0 +1,32 @@
+
+workflows:
+  mg-ios:
+    name: MG Ile Ogren - iOS
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Flutter paketlerini kur
+        script: |
+          flutter pub get
+
+      - name: iOS projesini hazirla
+        script: |
+          if [ ! -d "ios/Runner.xcodeproj" ]; then
+            flutter create --platforms=ios --org com.muratileogren .
+          fi
+
+      - name: Bundle ID ayarla
+        script: |
+          sed -i '' 's/com\.muratileogren\.muratIleOgren/com.muratileogren.academy/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/com\.muratileogren\.murat_ile_ogren/com.muratileogren.academy/g' ios/Runner.xcodeproj/project.pbxproj
+
+      - name: iOS derleme kontrolu
+        script: |
+          flutter build ios --release --no-codesign
+
+    artifacts:
+      - build/ios/iphoneos/*.app
+      - /tmp/xcodebuild_logs/*.log
