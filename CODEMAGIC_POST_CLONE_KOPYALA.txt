@@ -1,0 +1,3 @@
+#!/bin/bash
+set -e
+bash scripts/codemagic_post_clone_ios.sh

@@ -1,0 +1,32 @@
+MG İLE ÖĞREN - iOS v1.1.6 (build 7)
+
+SORUNUN NEDENİ:
+Önceki sürümde Windows'taki flutter_launcher_icons ayarlarında iOS kapalıydı.
+Codemagic'de iOS klasörü build esnasında oluşturulunca Flutter varsayılan simgesi kalıyordu.
+
+YAPILACAKLAR:
+1) Bu paketteki dosyaları C:\Muratileogren klasörüne kopyalayın.
+2) GitHub Desktop > Commit to main > Push origin.
+3) Codemagic > muratileogren > Workflow Editor > Scripts > Post-clone script:
+   ESKİ SCRIPTİ TAMAMEN SİLİN ve YALNIZCA şu komutu yazın:
+       #!/bin/bash
+       set -e
+       bash scripts/codemagic_post_clone_ios.sh
+   Post-test veya Pre-build değil, Post-clone script.
+4) Workflow Editor > Build > Xcode version: 27.x (veya iOS 27 SDK'lı latest stable).
+5) iOS signing: App Store; bundle ID = com.muratileogren.academy.
+6) Publishing > App Store Connect: Enabled, API key önceden bağlı kalsın.
+7) Save changes > Start new build, branch main.
+8) Logs içinde 'Generate original MG iOS app icons' ve 'MG iOS files and custom app icon prepared' satırlarını kontrol edin.
+9) Yeni build 1.1.6 (7) TestFlight'ta işlenince yeni simgeyi kontrol edin.
+
+UYARI 90725:
+24.11.2026 itibarıyla bu yalnızca ileri tarihli SDK uyumluluk uyarısıdır,
+App Store'a yükleme başarısızlığı değildir. Apple Nisan 2027 itibarıyla
+iOS 27 SDK / Xcode 27 veya sonrası gerekeceğini bildiriyor.
+Bunun için Codemagic'in Build altından Xcode 27.x seçmelisiniz.
+
+DİKKAT:
+- Apple sertifikaları, .p8 anahtarları veya şifreleri GitHub'a eklemeyin.
+- Flutter sürümünün ve Codemagic Xcode 27'nin bağımlılıklarınızla derlenebildiği test edilmelidir.
+- Burada Flutter/macOS derlemesi yapılamadı; iOS üretim adımları statik kontrol edildi.

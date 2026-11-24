@@ -1,5 +1,6 @@
+# iOS icon generation - run on Codemagic macOS after flutter create.
 flutter_launcher_icons:
   android: false
   ios: true
-  image_path: assets/app_icon.png
+  image_path: assets/app_icon_ios.png
   remove_alpha_ios: true
