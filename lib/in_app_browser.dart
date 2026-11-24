@@ -63,7 +63,7 @@ class _LegalDocumentsState extends State<LegalDocumentsScreen> {
       for(final pair in [(0,'Gizlilik politikası'),(1,'Üyelik koşulları')])Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:ChoiceChip(
         label:Text(pair.$2,style:const TextStyle(fontSize:12)),selected:current==pair.$1,
         onSelected:(_)=>setState(()=>current=pair.$1))))
-    ])),Expanded(child:InAppBrowserBody(key:ValueKey(current),path:current==0?'/gizlilik':'/uyelik-kosullari'))]));
+    ])),Expanded(child:InAppBrowserBody(key:ValueKey(current),path:current==0?'/gizlilik-politikasi':'/uyelik-kosullari'))]));
 }
 class InAppBrowserBody extends StatefulWidget {
   final String path;

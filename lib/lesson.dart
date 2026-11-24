@@ -19,8 +19,41 @@ class LessonScreen extends StatefulWidget {
 }
 class _LessonScreenState extends State<LessonScreen>{
   late Future<Map<String,dynamic>> future;
-  @override void initState(){super.initState();future=widget.store.api.lesson(widget.id);}
-  void refresh()=>setState(()=>future=widget.store.api.lesson(widget.id));
+  int? _nextLessonId;
+  String? _nextLessonTitle;
+  @override void initState(){super.initState();future=_loadLesson();}
+  Future<Map<String,dynamic>> _loadLesson() async {
+    final data=await widget.store.api.lesson(widget.id);
+    // Load the next lesson without rebuilding/restarting the active player.
+    unawaited(_loadNextLesson(data));
+    return data;
+  }
+  Future<void> _loadNextLesson(Map<String,dynamic> detail) async {
+    try {
+      final cat=detail['category'];
+      if(cat is! Map) return;
+      final id=asInt(cat['id']);
+      if(id<=0)return;
+      final response=await widget.store.api.category(id);
+      final raw=response['lessons'];
+      if(raw is! List)return;
+      final lessons=raw.whereType<Map>().map((item)=>Map<String,dynamic>.from(item)).toList();
+      final index=lessons.indexWhere((item)=>asInt(item['id'])==widget.id);
+      if(index<0 || index+1>=lessons.length)return;
+      final next=lessons[index+1];
+      if(mounted)setState((){
+        _nextLessonId=asInt(next['id']);
+        _nextLessonTitle=str(next['title']);
+      });
+    }catch(_){/* The current lesson must work even if next-lesson lookup fails. */}
+  }
+  void refresh()=>setState(()=>future=_loadLesson());
+  void _openNextLesson() {
+    final next=_nextLessonId;
+    if(next==null || next<=0 || !mounted)return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder:(_)=>LessonScreen(store:widget.store,id:next)));
+  }
   Future<void> download(Map<String,dynamic> l)async {
     try{
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Dosya hazırlanıyor...')));
@@ -63,7 +96,7 @@ class _LessonScreenState extends State<LessonScreen>{
         const SizedBox(height:18),
         if(l['can_watch']==true && l['has_video']==true)
            (l['video_type']=='file'
-             ? LessonVideo(store:widget.store,lessonId:widget.id,initialPosition:asInt(l['position_sec']),onComplete:(){if(mounted){refresh();widget.store.reload();}})
+             ? LessonVideo(key:ValueKey(widget.id),store:widget.store,lessonId:widget.id,initialPosition:asInt(l['position_sec']),nextLessonId:_nextLessonId,nextLessonTitle:_nextLessonTitle,onNext:_openNextLesson)
              : Container(padding:const EdgeInsets.all(24),child:FilledButton.icon(onPressed:()async{
                  final u=Uri.tryParse(str(l['external_url']));
                  if(u!=null && u.scheme=='https' && context.mounted){await Navigator.push(context,MaterialPageRoute(builder:(_)=>InAppBrowser(title:'Ders videosu',path:u.toString())));}
@@ -109,109 +142,155 @@ class _RatingPickerState extends State<_RatingPicker>{
 class LessonVideo extends StatefulWidget {
   final AcademyStore store;
   final int lessonId, initialPosition;
-  final VoidCallback onComplete;
-  const LessonVideo({super.key, required this.store, required this.lessonId,
-    required this.initialPosition, required this.onComplete});
-  @override State<LessonVideo> createState() => _LessonVideoState();
+  final int? nextLessonId;
+  final String? nextLessonTitle;
+  final VoidCallback onNext;
+  const LessonVideo({super.key,required this.store,required this.lessonId,
+    required this.initialPosition,required this.nextLessonId,
+    required this.nextLessonTitle,required this.onNext});
+  @override State<LessonVideo> createState()=>_LessonVideoState();
 }
 
 class _LessonVideoState extends State<LessonVideo> with WidgetsBindingObserver {
   VideoPlayerController? controller;
   Timer? tick;
+  Timer? countdownTimer;
+  final ValueNotifier<int?> countdown=ValueNotifier<int?>(null);
+  final ValueNotifier<bool> completed=ValueNotifier<bool>(false);
   String? error;
-  bool ready = false;
-  int lastSent = 0;
-  bool completedSignal = false;
+  bool ready=false;
+  bool _finishedOnce=false;
+  bool _navigating=false;
+  bool _fullscreenOpen=false;
+  int lastSent=0;
 
-  @override void initState() {
+  @override void initState(){
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     load();
   }
-
+  @override void didUpdateWidget(covariant LessonVideo oldWidget){
+    super.didUpdateWidget(oldWidget);
+    if(widget.nextLessonId!=oldWidget.nextLessonId && _finishedOnce){
+      _beginCountdown();
+    }
+  }
   Future<void> load() async {
-    final c = VideoPlayerController.networkUrl(
+    final c=VideoPlayerController.networkUrl(
       widget.store.api.videoUri(widget.lessonId),
-      httpHeaders: widget.store.api.authHeaders,
+      httpHeaders:widget.store.api.authHeaders,
     );
-    controller = c;
-    try {
+    controller=c;
+    try{
       await c.initialize();
-      if (!mounted) return;
-      if (widget.initialPosition > 0 &&
-          widget.initialPosition < c.value.duration.inSeconds) {
-        await c.seekTo(Duration(seconds: widget.initialPosition));
+      if(!mounted || controller!=c){await c.dispose();return;}
+      if(widget.initialPosition>0 && widget.initialPosition<c.value.duration.inSeconds-1){
+        await c.seekTo(Duration(seconds:widget.initialPosition));
       }
       c.addListener(onPosition);
-      setState(() => ready = true);
-      tick = Timer.periodic(const Duration(seconds: 10), (_) => save());
+      setState(()=>ready=true);
+      tick=Timer.periodic(const Duration(seconds:10),(_)=>save());
       await c.play();
-    } catch (_) {
-      if (mounted) setState(() => error = 'Video açılamadı. Bağlantıyı kontrol et.');
+    }catch(_){
+      if(mounted)setState(()=>error='Video açılamadı. Bağlantıyı kontrol et.');
     }
   }
-
-  void onPosition() {
-    final c = controller;
-    if (c == null || !mounted || !c.value.isInitialized) return;
-    final seconds = c.value.duration.inSeconds;
-    final completed = c.value.isCompleted ||
-        (seconds > 0 && c.value.position.inSeconds >= seconds * .9);
-    if (completed && !completedSignal) {
-      completedSignal = true;
-      save(force: true);
-      widget.onComplete();
+  void onPosition(){
+    final c=controller;
+    if(c==null || !mounted || !c.value.isInitialized || _finishedOnce)return;
+    // Do not complete at 90%: that previously caused a reload loop.
+    if(c.value.isCompleted){
+      _finishedOnce=true;
+      completed.value=true;
+      unawaited(save(force:true));
+      // No parent refresh: keep this player mounted until user chooses next.
+      _beginCountdown();
     }
   }
-
-  Future<void> save({bool force = false}) async {
-    final c = controller;
-    if (c == null || !ready || !widget.store.signedIn || !c.value.isInitialized) return;
-    final pos = c.value.position.inSeconds;
-    if (!force && (pos-lastSent).abs() < 5) return;
-    lastSent = pos;
-    try {
-      await widget.store.api.updateProgress(widget.lessonId,pos,c.value.duration.inSeconds);
-    } catch (_) { /* Offline progress is retried on the next tick. */ }
+  void _beginCountdown(){
+    if(!_finishedOnce || widget.nextLessonId==null || _navigating || countdownTimer!=null)return;
+    countdown.value ??= 8;
+    countdownTimer=Timer.periodic(const Duration(seconds:1),(timer){
+      if(!mounted || _navigating){timer.cancel();return;}
+      final left=countdown.value;
+      if(left==null){timer.cancel();return;}
+      if(left<=1){timer.cancel();countdownTimer=null;countdown.value=0;_goNext();}
+      else countdown.value=left-1;
+    });
   }
-
-  @override void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
+  void _cancelCountdown(){countdownTimer?.cancel();countdownTimer=null;countdown.value=null;}
+  void _goNext(){
+    if(_navigating || widget.nextLessonId==null)return;
+    _navigating=true;
+    _cancelCountdown();
+    // Close landscape route before replacing the lesson route.
+    if(_fullscreenOpen){
+      Navigator.of(context).pop();
+      Future.delayed(const Duration(milliseconds:250),(){
+        if(mounted)widget.onNext();
+      });
+    }else{widget.onNext();}
+  }
+  Future<void> _replay() async {
+    _cancelCountdown();
+    _finishedOnce=false;
+    completed.value=false;
+    final c=controller;
+    if(c==null)return;
+    await c.seekTo(Duration.zero);
+    await c.play();
+  }
+  Future<void> save({bool force=false})async{
+    final c=controller;
+    if(c==null || !ready || !widget.store.signedIn || !c.value.isInitialized)return;
+    final pos=c.value.position.inSeconds;
+    if(!force && (pos-lastSent).abs()<5)return;
+    lastSent=pos;
+    try{await widget.store.api.updateProgress(widget.lessonId,pos,c.value.duration.inSeconds);}catch(_){ }
+  }
+  @override void didChangeAppLifecycleState(AppLifecycleState state){
+    if(state!=AppLifecycleState.resumed){
       controller?.pause();
-      save(force:true);
+      unawaited(save(force:true));
+      countdownTimer?.cancel();countdownTimer=null;
+    }else if(_finishedOnce && countdown.value!=null && countdown.value! > 0){
+      _beginCountdown();
     }
   }
-
-  @override void dispose() {
+  @override void dispose(){
     WidgetsBinding.instance.removeObserver(this);
     tick?.cancel();
-    save(force:true);
+    countdownTimer?.cancel();
+    unawaited(save(force:true));
     controller?.removeListener(onPosition);
     controller?.dispose();
+    countdown.dispose();
+    completed.dispose();
     super.dispose();
   }
-
   Future<void> fullscreen() async {
-    final c = controller;
-    if (c == null) return;
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _FullscreenVideo(controller:c)));
-    if (mounted) setState(() {});
+    final c=controller;
+    if(c==null)return;
+    _fullscreenOpen=true;
+    await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>_FullscreenVideo(
+      controller:c,completed:completed,countdown:countdown,
+      nextLessonTitle:widget.nextLessonTitle,onNext:_goNext,onReplay:_replay)));
+    _fullscreenOpen=false;
+    if(mounted)setState((){});
   }
-
-  @override Widget build(BuildContext context) {
-    if (error != null) {
-      return Padding(padding:const EdgeInsets.all(20),
-        child:StateMessage(error!,retry:(){setState(() {error=null;ready=false;});load();}));
-    }
-    if (!ready || controller == null) {
-      return Container(height:210,margin:const EdgeInsets.symmetric(horizontal:16),
-        decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(18)),
-        child:const Center(child:CircularProgressIndicator(color:lime)));
-    }
+  @override Widget build(BuildContext context){
+    if(error!=null)return Padding(padding:const EdgeInsets.all(20),child:
+      StateMessage(error!,retry:(){setState((){error=null;ready=false;});
+        controller?.removeListener(onPosition);controller?.dispose();load();}));
+    if(!ready || controller==null)return Container(height:210,
+      margin:const EdgeInsets.symmetric(horizontal:16),
+      decoration:BoxDecoration(color:ink,borderRadius:BorderRadius.circular(18)),
+      child:const Center(child:CircularProgressIndicator(color:lime)));
     return Padding(padding:const EdgeInsets.symmetric(horizontal:16),
       child:ClipRRect(borderRadius:BorderRadius.circular(17),child:
-        _PlayerSurface(controller:controller!,fullscreen:false,onFullscreen:fullscreen)));
+        _PlayerSurface(controller:controller!,fullscreen:false,onFullscreen:fullscreen,
+          completed:completed,countdown:countdown,nextLessonTitle:widget.nextLessonTitle,
+          onNext:_goNext,onReplay:_replay)));
   }
 }
 
@@ -221,22 +300,49 @@ class _PlayerSurface extends StatefulWidget {
   final VideoPlayerController controller;
   final bool fullscreen;
   final VoidCallback? onFullscreen;
-  const _PlayerSurface({required this.controller,required this.fullscreen,this.onFullscreen});
+  final ValueNotifier<bool> completed;
+  final ValueNotifier<int?> countdown;
+  final String? nextLessonTitle;
+  final VoidCallback onNext;
+  final VoidCallback onReplay;
+  const _PlayerSurface({required this.controller,required this.fullscreen,
+    required this.completed,required this.countdown,required this.onNext,
+    required this.onReplay,this.nextLessonTitle,this.onFullscreen});
   @override State<_PlayerSurface> createState() => _PlayerSurfaceState();
 }
 class _PlayerSurfaceState extends State<_PlayerSurface> {
   bool showing=true;
   Timer? _hide;
-  @override void initState(){super.initState();widget.controller.addListener(_updated);}
+  bool _wasPlaying=false;
+  @override void initState(){
+    super.initState();
+    widget.controller.addListener(_updated);
+    _wasPlaying=widget.controller.value.isPlaying;
+    _scheduleHide(); // Hide initial controls after 3 seconds of playback.
+  }
+  void _scheduleHide(){
+    _hide?.cancel();
+    _hide=Timer(const Duration(seconds:3),(){
+      if(mounted && widget.controller.value.isPlaying && !widget.completed.value){
+        setState(()=>showing=false);
+      }
+    });
+  }
   @override void didUpdateWidget(covariant _PlayerSurface old){
     super.didUpdateWidget(old);
     if(old.controller!=widget.controller){old.controller.removeListener(_updated);widget.controller.addListener(_updated);}
   }
-  void _updated(){if(mounted)setState((){});}
+  void _updated(){
+    if(!mounted)return;
+    final isPlaying=widget.controller.value.isPlaying;
+    if(isPlaying && !_wasPlaying && showing) _scheduleHide();
+    _wasPlaying=isPlaying;
+    setState((){});
+  }
   void _show(){
     _hide?.cancel();
     if(mounted)setState(()=>showing=true);
-    _hide=Timer(const Duration(seconds:4),(){if(mounted&&widget.controller.value.isPlaying)setState(()=>showing=false);});
+    _scheduleHide();
   }
   void _playPause(){final c=widget.controller;c.value.isPlaying?c.pause():c.play();_show();}
   void _jump(int seconds){
@@ -267,7 +373,7 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
         behavior:HitTestBehavior.opaque,onTap:()=>showing?setState(()=>showing=false):_show(),
         child:Stack(children:[
           Positioned.fill(child:Center(child:AspectRatio(aspectRatio:ratio,child:VideoPlayer(c)))),
-          if(v.isBuffering)const Center(child:CircularProgressIndicator(color:lime)),
+          if(v.isBuffering && !v.isCompleted)const Center(child:CircularProgressIndicator(color:lime)),
           AnimatedOpacity(opacity:showing?1:0,duration:const Duration(milliseconds:180),
             child:IgnorePointer(ignoring:!showing,child:Stack(children:[
               Positioned.fill(child:ColoredBox(color:Colors.black.withValues(alpha:.22))),
@@ -304,6 +410,45 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
                   ])
                 ]))))
             ]))),
+          Positioned.fill(child:ValueListenableBuilder<bool>(
+            valueListenable:widget.completed,
+            builder:(context,isDone,_) {
+              if(!isDone)return const SizedBox.shrink();
+              final compact=!widget.fullscreen;
+              return ColoredBox(color:Colors.black.withValues(alpha:.88),
+                child:Center(child:Padding(
+                  padding:EdgeInsets.all(compact?8:20),
+                  child:Column(mainAxisSize:MainAxisSize.min,children:[
+                    Icon(Icons.check_circle_rounded,color:lime,size:compact?23:40),
+                    SizedBox(height:compact?3:10),
+                    Text('Ders tamamlandı',style:TextStyle(
+                      color:Colors.white,fontWeight:FontWeight.w800,fontSize:compact?13:20)),
+                    if(widget.nextLessonTitle!=null)...[
+                      SizedBox(height:compact?2:9),
+                      Text(widget.nextLessonTitle!,maxLines:1,textAlign:TextAlign.center,
+                        overflow:TextOverflow.ellipsis,style:TextStyle(
+                          color:Colors.white70,fontSize:compact?10:14)),
+                      SizedBox(height:compact?3:9),
+                      ValueListenableBuilder<int?>(valueListenable:widget.countdown,
+                        builder:(_,left,__)=>Text(left==null?'Sonraki ders hazırlanıyor...':
+                          'Sonraki derse $left saniye sonra geçilecek',
+                          textAlign:TextAlign.center,style:TextStyle(
+                            color:lime,fontSize:compact?10:14))),
+                      SizedBox(height:compact?4:13),
+                      FilledButton(onPressed:widget.onNext,
+                        style:FilledButton.styleFrom(
+                          minimumSize:Size(0,compact?30:42),
+                          padding:EdgeInsets.symmetric(horizontal:compact?12:20)),
+                        child:Text('Şimdi geç',style:TextStyle(fontSize:compact?11:14))),
+                    ]else...[
+                      SizedBox(height:compact?5:12),
+                      OutlinedButton(onPressed:widget.onReplay,
+                        child:const Text('Tekrar izle')),
+                    ],
+                  ])),
+                ));
+            },
+          )),
         ]))));
   }
   Widget _roundButton(IconData icon,VoidCallback action,double iconSize)=>Material(
@@ -314,7 +459,14 @@ class _PlayerSurfaceState extends State<_PlayerSurface> {
 
 class _FullscreenVideo extends StatefulWidget {
   final VideoPlayerController controller;
-  const _FullscreenVideo({required this.controller});
+  final ValueNotifier<bool> completed;
+  final ValueNotifier<int?> countdown;
+  final String? nextLessonTitle;
+  final VoidCallback onNext;
+  final VoidCallback onReplay;
+  const _FullscreenVideo({required this.controller,required this.completed,
+    required this.countdown,required this.onNext,required this.onReplay,
+    this.nextLessonTitle});
   @override State<_FullscreenVideo> createState()=>_FullscreenVideoState();
 }
 class _FullscreenVideoState extends State<_FullscreenVideo> {
@@ -330,7 +482,9 @@ class _FullscreenVideoState extends State<_FullscreenVideo> {
   }
   @override Widget build(BuildContext context)=>Scaffold(backgroundColor:Colors.black,
     body:SafeArea(child:Stack(children:[
-      Center(child:_PlayerSurface(controller:widget.controller,fullscreen:true)),
+      Center(child:_PlayerSurface(controller:widget.controller,fullscreen:true,
+        completed:widget.completed,countdown:widget.countdown,
+        nextLessonTitle:widget.nextLessonTitle,onNext:widget.onNext,onReplay:widget.onReplay)),
       Positioned(top:4,left:8,child:IconButton(onPressed:()=>Navigator.of(context).pop(),
         icon:const Icon(Icons.close_rounded,color:Colors.white))),
     ])));
