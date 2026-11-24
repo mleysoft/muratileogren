@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:app_badge_plus/app_badge_plus.dart';
 import 'api.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -108,8 +107,12 @@ class AcademyNotifications extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  // The in-app unread badge is drawn by the Flutter shell from `unread`.
+  // Device icon badges are delivered in the server FCM/APNs payload. Android
+  // launcher dots/numeric badges depend on launcher notification support.
+  // Avoid an extra plugin so an absent package cannot break app startup.
   Future<void> _setBadge(int count) async {
-    try { await AppBadgePlus.updateBadge(count.clamp(0, 999).toInt()); } catch (_) {}
+    // Do not update the phone's launcher badge from this method.
   }
 
   Future<void> registerDevice() async {

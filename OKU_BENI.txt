@@ -1,0 +1,28 @@
+Murat Ile Ogren - v1.2.7 Android Firebase derleme duzeltmesi
+
+NEDEN:
+Son guncellemenin notifications.dart dosyasi app_badge_plus paketi istiyordu.
+Yerel Flutter bagimliliklariyla eslesmeyince derleme basarisiz oluyordu.
+
+BU PAKETTE:
+- pubspec.yaml: app_badge_plus bagimliligi kaldirildi.
+- lib/notifications.dart: app_badge_plus import/cagri kaldirildi.
+- BILDIRIM_DERLEME_DUZELT.bat: onbellek ve paket kurulumunu temizden baslatir.
+
+KURULUM:
+1. Zip icindeki 3 dosyayi / klasorleri C:\Muratileogren icine kopyalayin.
+2. C:\Muratileogren\lib\notifications.dart gercekten degistigini kontrol edin.
+3. BILDIRIM_DERLEME_DUZELT.bat calistirin.
+
+NEYI KORUR:
+- Firebase bildirim alma ve link yonlendirme
+- Uygulama icindeki kirmizi okunmamis bildirim sayaci
+- Okundu bilgisi / API senkronizasyonu
+- Sunucu FCM/APNs payload ile gonderilen iOS badge sayisi
+
+SINIRLAMA:
+Uygulama simgesindeki sayinin cihaz uzerinde aninda degismesi icin
+native badge guncelleme eklentisi su an kullanilmiyor. iOS'taki uzaktan
+bildirim badge payload'i calismaya devam eder; Android rozeti launcher'a baglidir.
+Bildirim acilinca uygulama ici sayac aninda guncellenir ancak sistem simgesi
+rozeti yeni APNs guncellemesi gelene kadar farkli kalabilir.
