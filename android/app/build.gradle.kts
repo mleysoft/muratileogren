@@ -6,7 +6,7 @@
 }
 
 android {
-    namespace = "com.example.murat_ile_ogren"
+    namespace = "com.muratileogren.academy"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -43,6 +43,8 @@ android {
 flutter {
     source = "../.."
 }
+
+
 
 
 

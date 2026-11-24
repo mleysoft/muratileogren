@@ -2,11 +2,11 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="MG Ã„Â°le Ãƒâ€“Ã„Å¸ren"
+        android:label="MG Ãƒâ€Ã‚Â°le ÃƒÆ’Ã¢â‚¬â€œÃƒâ€Ã…Â¸ren"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
-            android:name=".MainActivity"
+            android:name="com.muratileogren.academy.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -45,5 +45,7 @@
         </intent>
     </queries>
 </manifest>
+
+
 
 

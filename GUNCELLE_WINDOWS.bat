@@ -48,6 +48,10 @@ if exist "firebase\google-services.json" (
 ) else (
   echo Firebase Android config eksik, push devre disi kalacak.
 )
+echo [6/8] Android MainActivity paket eslesmesi kontrol ediliyor...
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\fix_android_mainactivity.ps1"
+if errorlevel 1 goto fail
+
 echo [5/7] Android adi ve INTERNET izni uygulaniyor...
 call dart run scripts\apply_brand.dart
 if errorlevel 1 goto fail
